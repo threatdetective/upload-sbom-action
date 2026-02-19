@@ -32,7 +32,7 @@ A GitHub Action that uploads a [CycloneDX](https://cyclonedx.org/) SBOM to [Thre
 |-------|----------|---------|-------------|
 | `project-id` | Yes | — | Threat Detective project ID |
 | `sbom-file` | Yes | — | Path to CycloneDX JSON SBOM file |
-| `api-url` | No | `https://app.threatdetectivehq.com` | Threat Detective API base URL |
+| `api-url` | No | `https://app.threatdetectivehq.com` | Threat Detective API base URL (must be HTTPS) |
 | `software-item-name` | No | _(from SBOM)_ | Override the target software item name |
 | `version` | No | _(from SBOM)_ | Override the version label |
 | `auto-create` | No | `true` | Create the software item if it does not exist |
@@ -101,10 +101,14 @@ jobs:
     poll-timeout: 180
 
 - name: Show results
+  env:
+    STATUS: ${{ steps.sbom.outputs.status }}
+    COMPONENTS: ${{ steps.sbom.outputs.component-count }}
+    VERSION_ID: ${{ steps.sbom.outputs.software-item-version-id }}
   run: |
-    echo "Status: ${{ steps.sbom.outputs.status }}"
-    echo "Components: ${{ steps.sbom.outputs.component-count }}"
-    echo "Version ID: ${{ steps.sbom.outputs.software-item-version-id }}"
+    echo "Status: ${STATUS}"
+    echo "Components: ${COMPONENTS}"
+    echo "Version ID: ${VERSION_ID}"
 ```
 
 ### Docker build with SBOM
@@ -208,6 +212,18 @@ No secrets are stored or transmitted — authentication is entirely based on Git
 This action requires the `id-token: write` permission to request an OIDC token from GitHub. The `contents: read` permission is needed by `actions/checkout` to clone your repository (this is the default for most workflows).
 
 The OIDC token is scoped to the audience you configure (defaults to `https://app.threatdetectivehq.com`) and is short-lived (typically 5 minutes). The action masks the token from workflow logs automatically.
+
+## Security
+
+- **HTTPS only**: The `api-url` input must use HTTPS. The action refuses to send OIDC tokens over plaintext HTTP.
+- **Workspace confinement**: The `sbom-file` path is restricted to the GitHub Actions workspace directory, preventing path traversal on self-hosted runners.
+- **Token masking**: The OIDC token is masked from workflow logs via `core.setSecret()`.
+- **Request timeouts**: All HTTP requests have a 30-second timeout to prevent runner hang attacks.
+- **Pinning**: For production workflows, pin this action to a specific commit SHA rather than a mutable tag:
+
+  ```yaml
+  - uses: threatdetective/upload-sbom-action@<commit-sha> # v1.0.0
+  ```
 
 ## License
 

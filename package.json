@@ -9,7 +9,7 @@
     "format:check": "prettier --check 'src/**/*.ts'"
   },
   "dependencies": {
-    "@actions/core": "^2.0.1"
+    "@actions/core": "2.0.3"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",

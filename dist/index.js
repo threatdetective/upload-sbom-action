@@ -31172,6 +31172,10 @@ Object.defineProperty(exports, "__esModule", ({ value: true }));
 const core = __importStar(__nccwpck_require__(7484));
 const fs = __importStar(__nccwpck_require__(9896));
 const path = __importStar(__nccwpck_require__(6928));
+const REQUEST_TIMEOUT_MS = 30_000;
+const MAX_RETRY_AFTER_SECONDS = 60;
+const MAX_ERROR_BODY_LENGTH = 500;
+const IMPORT_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const ERROR_MESSAGES = {
     missing_token: "Internal error — OIDC token was not sent correctly. Please report this as a bug.",
     invalid_format: "Internal error — Authorization header was malformed. Please report this as a bug.",
@@ -31194,9 +31198,7 @@ async function run() {
     try {
         const projectId = core.getInput("project-id", { required: true });
         const sbomFile = core.getInput("sbom-file", { required: true });
-        const apiUrl = core
-            .getInput("api-url", { required: false })
-            .replace(/\/+$/, "");
+        const apiUrl = validateApiUrl(core.getInput("api-url", { required: false }));
         const softwareItemName = core.getInput("software-item-name", {
             required: false,
         });
@@ -31211,11 +31213,7 @@ async function run() {
             core.setFailed("poll-timeout must be a positive integer");
             return;
         }
-        const resolvedPath = path.resolve(sbomFile);
-        if (!fs.existsSync(resolvedPath)) {
-            core.setFailed(`SBOM file not found: ${resolvedPath}`);
-            return;
-        }
+        const resolvedPath = validateSbomPath(sbomFile);
         const stats = fs.statSync(resolvedPath);
         if (stats.size > 50 * 1024 * 1024) {
             core.setFailed("SBOM file exceeds the maximum size of 50MB");
@@ -31254,7 +31252,7 @@ async function run() {
         if (version) {
             formData.append("version", version);
         }
-        const uploadResponse = await fetch(uploadUrl, {
+        const uploadResponse = await fetchWithTimeout(uploadUrl, {
             method: "POST",
             headers: {
                 Authorization: `Bearer ${token}`,
@@ -31279,18 +31277,23 @@ async function run() {
                 core.setFailed(`Upload failed (HTTP ${uploadResponse.status}): ${friendly}`);
             }
             else {
-                core.setFailed(`Upload failed (HTTP ${uploadResponse.status}): ${uploadBody}`);
+                core.setFailed(`Upload failed (HTTP ${uploadResponse.status}): ${truncate(uploadBody)}`);
             }
             return;
         }
         const upload = safeParseJson(uploadBody);
         if (!upload) {
-            core.setFailed(`Unexpected response from API: ${uploadBody}`);
+            core.setFailed(`Unexpected response from API: ${truncate(uploadBody)}`);
             return;
         }
         core.setOutput("status", upload.status);
-        if (upload.import_id)
+        if (upload.import_id) {
+            if (!IMPORT_ID_PATTERN.test(upload.import_id)) {
+                core.setFailed(`Unexpected import_id format returned by API: ${truncate(upload.import_id)}`);
+                return;
+            }
             core.setOutput("import-id", upload.import_id);
+        }
         if (upload.software_item_name)
             core.setOutput("software-item-name", upload.software_item_name);
         if (upload.version)
@@ -31345,35 +31348,42 @@ async function pollImportStatus(apiUrl, projectId, importId, token, timeoutSecon
     const deadline = Date.now() + timeoutSeconds * 1000;
     const pollInterval = 5000;
     while (Date.now() < deadline) {
-        const response = await fetch(pollUrl, {
+        const remaining = deadline - Date.now();
+        if (remaining <= 0)
+            break;
+        const response = await fetchWithTimeout(pollUrl, {
             headers: {
                 Authorization: `Bearer ${token}`,
                 Accept: "application/json",
             },
         });
         if (response.status === 429) {
-            const retryAfter = parseInt(response.headers.get("Retry-After") ?? "10", 10);
+            const rawRetryAfter = parseInt(response.headers.get("Retry-After") ?? "10", 10);
+            const retryAfter = Math.min(rawRetryAfter, MAX_RETRY_AFTER_SECONDS);
+            const sleepMs = Math.min(retryAfter * 1000, deadline - Date.now());
+            if (sleepMs <= 0)
+                break;
             core.info(`Rate limited, retrying after ${retryAfter}s...`);
-            await sleep(retryAfter * 1000);
+            await sleep(sleepMs);
             continue;
         }
         if (response.status >= 400) {
             const body = await response.text();
-            core.warning(`Poll request failed (HTTP ${response.status}): ${body.substring(0, 200)}`);
-            await sleep(pollInterval);
+            core.warning(`Poll request failed (HTTP ${response.status}): ${truncate(body, 200)}`);
+            await sleep(Math.min(pollInterval, deadline - Date.now()));
             continue;
         }
         const status = safeParseJson(await response.text());
         if (!status) {
             core.warning("Failed to parse import status response");
-            await sleep(pollInterval);
+            await sleep(Math.min(pollInterval, deadline - Date.now()));
             continue;
         }
         core.info(`Import status: ${status.status}`);
         if (status.status === "completed" || status.status === "failed") {
             return status;
         }
-        await sleep(pollInterval);
+        await sleep(Math.min(pollInterval, deadline - Date.now()));
     }
     core.setFailed(`Timed out after ${timeoutSeconds}s waiting for import to complete. ` +
         `The import is still processing — check the Threat Detective dashboard for results.`);
@@ -31399,14 +31409,73 @@ async function writeSummary(upload, importStatus) {
             { data: "Field", header: true },
             { data: "Value", header: true },
         ],
-        ["Status", `${statusEmoji} ${finalStatus}`],
-        ["Software Item", upload.software_item_name ?? "—"],
-        ["Version", upload.version ?? "—"],
-        ["Components", String(componentCount)],
-        ["Import ID", upload.import_id ?? "—"],
-        ["Software Item Version ID", String(softwareItemVersionId)],
+        ["Status", `${statusEmoji} ${escapeHtml(finalStatus)}`],
+        ["Software Item", escapeHtml(upload.software_item_name ?? "—")],
+        ["Version", escapeHtml(upload.version ?? "—")],
+        ["Components", escapeHtml(String(componentCount))],
+        ["Import ID", escapeHtml(upload.import_id ?? "—")],
+        ["Software Item Version ID", escapeHtml(String(softwareItemVersionId))],
     ])
         .write();
+}
+function validateApiUrl(raw) {
+    const trimmed = raw.replace(/\/+$/, "");
+    let parsed;
+    try {
+        parsed = new URL(trimmed);
+    }
+    catch {
+        throw new Error(`api-url is not a valid URL: ${trimmed}`);
+    }
+    if (parsed.protocol !== "https:") {
+        throw new Error(`api-url must use HTTPS (got ${parsed.protocol}). ` +
+            "Sending OIDC tokens over plaintext HTTP is not allowed.");
+    }
+    return trimmed;
+}
+function validateSbomPath(sbomFile) {
+    const resolvedPath = path.resolve(sbomFile);
+    const workspace = process.env["GITHUB_WORKSPACE"];
+    if (workspace) {
+        const resolvedWorkspace = path.resolve(workspace);
+        if (resolvedPath !== resolvedWorkspace &&
+            !resolvedPath.startsWith(resolvedWorkspace + path.sep)) {
+            throw new Error(`sbom-file must be within the workspace directory (${resolvedWorkspace}). Got: ${resolvedPath}`);
+        }
+    }
+    if (!fs.existsSync(resolvedPath)) {
+        throw new Error(`SBOM file not found: ${resolvedPath}`);
+    }
+    return resolvedPath;
+}
+async function fetchWithTimeout(url, init) {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+    try {
+        return await fetch(url, { ...init, signal: controller.signal });
+    }
+    catch (error) {
+        if (error instanceof DOMException && error.name === "AbortError") {
+            throw new Error(`HTTP request timed out after ${REQUEST_TIMEOUT_MS / 1000}s: ${url}`);
+        }
+        throw error;
+    }
+    finally {
+        clearTimeout(timeoutId);
+    }
+}
+function escapeHtml(s) {
+    return s
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
+}
+function truncate(s, maxLength = MAX_ERROR_BODY_LENGTH) {
+    if (s.length <= maxLength)
+        return s;
+    return s.substring(0, maxLength) + "... (truncated)";
 }
 function safeParseJson(text) {
     try {
@@ -31417,6 +31486,8 @@ function safeParseJson(text) {
     }
 }
 function sleep(ms) {
+    if (ms <= 0)
+        return Promise.resolve();
     return new Promise((resolve) => setTimeout(resolve, ms));
 }
 function formatBytes(bytes) {
