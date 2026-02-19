@@ -1,5 +1,8 @@
 # Upload SBOM to Threat Detective
 
+[![CI](https://github.com/threatdetective/upload-sbom-action/actions/workflows/test.yml/badge.svg)](https://github.com/threatdetective/upload-sbom-action/actions/workflows/test.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+
 A GitHub Action that uploads a [CycloneDX](https://cyclonedx.org/) SBOM to [Threat Detective](https://threatdetectivehq.com) using OIDC workload identity federation. No long-lived secrets required.
 
 ## Prerequisites
@@ -222,7 +225,7 @@ The OIDC token is scoped to the audience you configure (defaults to `https://app
 - **Pinning**: For production workflows, pin this action to a specific commit SHA rather than a mutable tag:
 
   ```yaml
-  - uses: threatdetective/upload-sbom-action@<commit-sha> # v1.0.0
+  - uses: threatdetective/upload-sbom-action@df44117df8866ac03f998989ef229f97c348b938 # v1.0.0
   ```
 
 ## License
