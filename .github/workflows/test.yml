@@ -1,0 +1,89 @@
+name: Integration Test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    # Skip on forks — no access to staging environment
+    if: github.event.pull_request.head.repo.fork != true
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+
+      - run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Create test SBOM
+        env:
+          RUN_ID: ${{ github.run_id }}
+          RUN_ATTEMPT: ${{ github.run_attempt }}
+          RUN_NUMBER: ${{ github.run_number }}
+        run: |
+          cat > test-sbom.json << EOF
+          {
+            "bomFormat": "CycloneDX",
+            "specVersion": "1.5",
+            "serialNumber": "urn:uuid:${RUN_ID}-${RUN_ATTEMPT}",
+            "version": 1,
+            "metadata": {
+              "component": {
+                "type": "application",
+                "name": "upload-sbom-action-test",
+                "version": "0.0.0-test.${RUN_NUMBER}"
+              }
+            },
+            "components": [
+              {
+                "type": "library",
+                "name": "test-component",
+                "version": "1.0.0",
+                "purl": "pkg:npm/test-component@1.0.0"
+              }
+            ]
+          }
+          EOF
+
+      - name: Upload SBOM
+        id: upload
+        uses: ./
+        with:
+          project-id: ${{ vars.TD_TEST_PROJECT_ID }}
+          sbom-file: test-sbom.json
+          api-url: ${{ vars.TD_TEST_API_URL }}
+          audience: ${{ vars.TD_TEST_API_URL }}
+          auto-create: true
+          wait-for-completion: true
+          poll-timeout: 60
+
+      - name: Verify outputs
+        env:
+          UPLOAD_STATUS: ${{ steps.upload.outputs.status }}
+          IMPORT_ID: ${{ steps.upload.outputs.import-id }}
+          SOFTWARE_ITEM: ${{ steps.upload.outputs.software-item-name }}
+          VERSION: ${{ steps.upload.outputs.version }}
+          COMPONENT_COUNT: ${{ steps.upload.outputs.component-count }}
+        run: |
+          echo "Status: ${UPLOAD_STATUS}"
+          echo "Import ID: ${IMPORT_ID}"
+          echo "Software Item: ${SOFTWARE_ITEM}"
+          echo "Version: ${VERSION}"
+          echo "Components: ${COMPONENT_COUNT}"
+
+          if [ "${UPLOAD_STATUS}" != "completed" ] && [ "${UPLOAD_STATUS}" != "existing" ]; then
+            echo "::error::Expected status 'completed' or 'existing', got '${UPLOAD_STATUS}'"
+            exit 1
+          fi

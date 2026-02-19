@@ -1,0 +1,58 @@
+name: 'Upload SBOM to Threat Detective'
+description: 'Upload a CycloneDX SBOM using OIDC workload identity federation'
+author: 'Threat Detective'
+branding:
+  icon: 'shield'
+  color: 'orange'
+
+inputs:
+  project-id:
+    description: 'Threat Detective project ID'
+    required: true
+  sbom-file:
+    description: 'Path to CycloneDX JSON SBOM file'
+    required: true
+  api-url:
+    description: 'Threat Detective API base URL'
+    required: false
+    default: 'https://app.threatdetectivehq.com'
+  software-item-name:
+    description: 'Target software item name (inferred from SBOM if omitted)'
+    required: false
+  version:
+    description: 'Version label (inferred from SBOM if omitted)'
+    required: false
+  auto-create:
+    description: 'Create software item if it does not exist'
+    required: false
+    default: 'true'
+  audience:
+    description: 'OIDC audience claim'
+    required: false
+    default: 'https://app.threatdetectivehq.com'
+  wait-for-completion:
+    description: 'Poll the import status until processing completes'
+    required: false
+    default: 'false'
+  poll-timeout:
+    description: 'Maximum seconds to wait for import completion'
+    required: false
+    default: '120'
+
+outputs:
+  status:
+    description: 'Import status: queued, existing, completed, or failed'
+  import-id:
+    description: 'Import job ID (if queued)'
+  software-item-version-id:
+    description: 'ID of the created or matched software item version'
+  software-item-name:
+    description: 'Name of the software item'
+  version:
+    description: 'Version created or matched'
+  component-count:
+    description: 'Number of components imported'
+
+runs:
+  using: 'node24'
+  main: 'dist/index.js'
