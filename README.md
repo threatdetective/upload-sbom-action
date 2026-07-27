@@ -13,11 +13,11 @@ A GitHub Action that uploads a [CycloneDX](https://cyclonedx.org/) SBOM to [Thre
 
    ```yaml
    permissions:
-     id-token: write   # Required — allows the action to request an OIDC token
-     contents: read     # Required — allows actions/checkout to clone your repo
+     id-token: write   # required — lets the action request an OIDC token
+     contents: read    # needed by actions/checkout, not by this action
    ```
 
-   > **Without `id-token: write`, the action will fail.** This permission tells GitHub's runner to issue a short-lived JWT that Threat Detective verifies — no API keys or secrets are needed.
+   > **Without `id-token: write`, the action will fail.** This permission tells GitHub's runner to issue a short-lived JWT (typically valid for 5 minutes) that Threat Detective verifies — no API keys or secrets are needed.
 
 ## Quick Start
 
@@ -186,7 +186,7 @@ jobs:
           wait-for-completion: true
 ```
 
-## Error Troubleshooting
+## Troubleshooting
 
 | Error | Cause | Fix |
 |-------|-------|-----|
@@ -209,12 +209,6 @@ jobs:
 5. A job summary table is written with the upload results.
 
 No secrets are stored or transmitted — authentication is entirely based on GitHub's OIDC identity federation.
-
-## Permissions
-
-This action requires the `id-token: write` permission to request an OIDC token from GitHub. The `contents: read` permission is needed by `actions/checkout` to clone your repository (this is the default for most workflows).
-
-The OIDC token is scoped to the audience you configure (defaults to `https://eu.threatdetectivehq.com`) and is short-lived (typically 5 minutes). The action masks the token from workflow logs automatically.
 
 ## Security
 
