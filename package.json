@@ -12,10 +12,10 @@
     "@actions/core": "2.0.3"
   },
   "devDependencies": {
-    "@types/node": "^24.0.0",
-    "@vercel/ncc": "^0.38.3",
-    "prettier": "^3.7.0",
-    "typescript": "^5.8.0"
+    "@types/node": "^24.13.3",
+    "@vercel/ncc": "^0.44.1",
+    "prettier": "^3.9.6",
+    "typescript": "^5.9.3"
   },
   "license": "MIT"
 }
