@@ -1,5 +1,8 @@
 # Upload SBOM to Threat Detective
 
+[![CI](https://github.com/threatdetective/upload-sbom-action/actions/workflows/test.yml/badge.svg)](https://github.com/threatdetective/upload-sbom-action/actions/workflows/test.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+
 A GitHub Action that uploads a [CycloneDX](https://cyclonedx.org/) SBOM to [Threat Detective](https://threatdetectivehq.com) using OIDC workload identity federation. No long-lived secrets required.
 
 ## Prerequisites
@@ -32,11 +35,11 @@ A GitHub Action that uploads a [CycloneDX](https://cyclonedx.org/) SBOM to [Thre
 |-------|----------|---------|-------------|
 | `project-id` | Yes | — | Threat Detective project ID |
 | `sbom-file` | Yes | — | Path to CycloneDX JSON SBOM file |
-| `api-url` | No | `https://app.threatdetectivehq.com` | Threat Detective API base URL (must be HTTPS) |
+| `api-url` | No | `https://eu.threatdetectivehq.com` | Threat Detective API base URL (must be HTTPS) |
 | `software-item-name` | No | _(from SBOM)_ | Override the target software item name |
 | `version` | No | _(from SBOM)_ | Override the version label |
 | `auto-create` | No | `true` | Create the software item if it does not exist |
-| `audience` | No | `https://app.threatdetectivehq.com` | OIDC audience claim (must match your trust policy) |
+| `audience` | No | `https://eu.threatdetectivehq.com` | OIDC audience claim (must match your trust policy) |
 | `wait-for-completion` | No | `false` | Poll the import status until processing completes |
 | `poll-timeout` | No | `120` | Maximum seconds to wait for import completion |
 
@@ -211,7 +214,7 @@ No secrets are stored or transmitted — authentication is entirely based on Git
 
 This action requires the `id-token: write` permission to request an OIDC token from GitHub. The `contents: read` permission is needed by `actions/checkout` to clone your repository (this is the default for most workflows).
 
-The OIDC token is scoped to the audience you configure (defaults to `https://app.threatdetectivehq.com`) and is short-lived (typically 5 minutes). The action masks the token from workflow logs automatically.
+The OIDC token is scoped to the audience you configure (defaults to `https://eu.threatdetectivehq.com`) and is short-lived (typically 5 minutes). The action masks the token from workflow logs automatically.
 
 ## Security
 
@@ -222,7 +225,7 @@ The OIDC token is scoped to the audience you configure (defaults to `https://app
 - **Pinning**: For production workflows, pin this action to a specific commit SHA rather than a mutable tag:
 
   ```yaml
-  - uses: threatdetective/upload-sbom-action@<commit-sha> # v1.0.0
+  - uses: threatdetective/upload-sbom-action@df44117df8866ac03f998989ef229f97c348b938 # v1.0.0
   ```
 
 ## License
