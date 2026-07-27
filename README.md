@@ -225,7 +225,7 @@ The OIDC token is scoped to the audience you configure (defaults to `https://eu.
 - **Pinning**: For production workflows, pin this action to a specific commit SHA rather than a mutable tag:
 
   ```yaml
-  - uses: threatdetective/upload-sbom-action@df44117df8866ac03f998989ef229f97c348b938 # v1.0.0
+  - uses: threatdetective/upload-sbom-action@5598b3142c34c3b74ed984dc70bdb3c9bac045f7 # v1.0.0
   ```
 
 ## License
