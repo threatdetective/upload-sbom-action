@@ -1,5 +1,5 @@
 name: 'Upload SBOM to Threat Detective'
-description: 'Upload CycloneDX SBOMs to Threat Detective, medical device SBOM compliance for FDA and EU. Keyless GitHub OIDC - no secrets.'
+description: 'Upload CycloneDX SBOMs to Threat Detective, medical device SBOM compliance for FDA and EU.'
 author: 'Threat Detective'
 branding:
   icon: 'shield'
