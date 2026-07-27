@@ -12,11 +12,8 @@ permissions:
 jobs:
   test:
     runs-on: ubuntu-latest
-    # Skip when staging environment is not configured (forks, missing vars)
-    if: >-
-      github.event.pull_request.head.repo.fork != true
-      && vars.TD_TEST_PROJECT_ID != ''
-      && vars.TD_TEST_API_URL != ''
+    # Fork PRs cannot mint OIDC tokens, so skip them
+    if: github.event.pull_request.head.repo.fork != true
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -64,10 +61,8 @@ jobs:
         id: upload
         uses: ./
         with:
-          project-id: ${{ vars.TD_TEST_PROJECT_ID }}
+          project-id: 2
           sbom-file: test-sbom.json
-          api-url: ${{ vars.TD_TEST_API_URL }}
-          audience: ${{ vars.TD_TEST_API_URL }}
           auto-create: true
           wait-for-completion: true
           poll-timeout: 60
