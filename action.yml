@@ -15,7 +15,7 @@ inputs:
   api-url:
     description: 'Threat Detective API base URL'
     required: false
-    default: 'https://app.threatdetectivehq.com'
+    default: 'https://eu.threatdetectivehq.com'
   software-item-name:
     description: 'Target software item name (inferred from SBOM if omitted)'
     required: false
@@ -29,7 +29,7 @@ inputs:
   audience:
     description: 'OIDC audience claim'
     required: false
-    default: 'https://app.threatdetectivehq.com'
+    default: 'https://eu.threatdetectivehq.com'
   wait-for-completion:
     description: 'Poll the import status until processing completes'
     required: false

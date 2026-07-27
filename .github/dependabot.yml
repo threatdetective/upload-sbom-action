@@ -1,0 +1,18 @@
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    # Note: npm bumps change the bundled dist/index.js. Check out the
+    # dependabot branch, run `npm run build`, and commit dist/ before
+    # merging — the lint workflow enforces this.
+    groups:
+      npm-dependencies:
+        patterns:
+          - '*'
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
