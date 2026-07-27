@@ -60,7 +60,8 @@ const ERROR_MESSAGES: Record<string, string> = {
     "Token claims do not satisfy the trust policy conditions. Check claim_conditions in your trust policy.",
   validation_error:
     "Invalid SBOM — ensure the file is valid CycloneDX JSON format.",
-  rate_limited: "Rate limit exceeded. The action will retry automatically.",
+  rate_limited:
+    "Rate limit exceeded. Re-run the workflow, or stagger your CI pipelines.",
   jwks_error:
     "Failed to fetch OIDC signing keys from the identity provider. This is usually a transient error — retry the workflow.",
   not_found: "Resource not found. Check your project-id and import-id values.",
@@ -159,7 +160,7 @@ async function run(): Promise<void> {
       const parsed = safeParseJson<ApiErrorResponse>(uploadBody);
       const retryAfter =
         parsed?.retry_after ??
-        parseInt(uploadResponse.headers.get("Retry-After") ?? "30", 10);
+        parseRetryAfterSeconds(uploadResponse.headers.get("Retry-After"), 30);
       core.setFailed(
         `Rate limit exceeded. Retry after ${retryAfter} seconds. ` +
           "Reduce upload frequency or stagger your CI pipelines.",
@@ -297,8 +298,8 @@ async function pollImportStatus(
     });
 
     if (response.status === 429) {
-      const rawRetryAfter = parseInt(
-        response.headers.get("Retry-After") ?? "10",
+      const rawRetryAfter = parseRetryAfterSeconds(
+        response.headers.get("Retry-After"),
         10,
       );
       const retryAfter = Math.min(rawRetryAfter, MAX_RETRY_AFTER_SECONDS);
@@ -399,24 +400,28 @@ function validateApiUrl(raw: string): string {
 function validateSbomPath(sbomFile: string): string {
   const resolvedPath = path.resolve(sbomFile);
 
-  const workspace = process.env["GITHUB_WORKSPACE"];
-  if (workspace) {
-    const resolvedWorkspace = path.resolve(workspace);
-    if (
-      resolvedPath !== resolvedWorkspace &&
-      !resolvedPath.startsWith(resolvedWorkspace + path.sep)
-    ) {
-      throw new Error(
-        `sbom-file must be within the workspace directory (${resolvedWorkspace}). Got: ${resolvedPath}`,
-      );
-    }
-  }
-
   if (!fs.existsSync(resolvedPath)) {
     throw new Error(`SBOM file not found: ${resolvedPath}`);
   }
 
-  return resolvedPath;
+  // realpath resolves symlinks so a link inside the workspace cannot
+  // point the upload at a file outside it
+  const realPath = fs.realpathSync(resolvedPath);
+
+  const workspace = process.env["GITHUB_WORKSPACE"];
+  if (workspace) {
+    const realWorkspace = fs.realpathSync(path.resolve(workspace));
+    if (
+      realPath !== realWorkspace &&
+      !realPath.startsWith(realWorkspace + path.sep)
+    ) {
+      throw new Error(
+        `sbom-file must be within the workspace directory (${realWorkspace}). Got: ${realPath}`,
+      );
+    }
+  }
+
+  return realPath;
 }
 
 async function fetchWithTimeout(
@@ -454,6 +459,16 @@ function truncate(
 ): string {
   if (s.length <= maxLength) return s;
   return s.substring(0, maxLength) + "... (truncated)";
+}
+
+function parseRetryAfterSeconds(
+  header: string | null,
+  fallback: number,
+): number {
+  // Retry-After may be an HTTP-date rather than delta-seconds; treat
+  // anything non-numeric as the fallback instead of propagating NaN
+  const parsed = parseInt(header ?? "", 10);
+  return Number.isNaN(parsed) || parsed < 0 ? fallback : parsed;
 }
 
 function safeParseJson<T>(text: string): T | null {
