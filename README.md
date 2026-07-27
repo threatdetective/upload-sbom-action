@@ -3,7 +3,7 @@
 [![CI](https://github.com/threatdetective/upload-sbom-action/actions/workflows/test.yml/badge.svg)](https://github.com/threatdetective/upload-sbom-action/actions/workflows/test.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-A GitHub Action that uploads a [CycloneDX](https://cyclonedx.org/) SBOM to [Threat Detective](https://threatdetectivehq.com) using OIDC workload identity federation. No long-lived secrets required.
+A GitHub Action that uploads a [CycloneDX](https://cyclonedx.org/) SBOM to [Threat Detective](https://threatdetectivehq.com) — SBOM compliance and vulnerability monitoring for medical devices. Upload once from CI and Threat Detective handles validation, CVE matching, and regulatory-ready evidence for FDA and EU submissions.
 
 ## Prerequisites
 
