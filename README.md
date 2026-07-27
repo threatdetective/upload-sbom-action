@@ -208,7 +208,7 @@ jobs:
 4. If `wait-for-completion` is enabled, the action polls the import status endpoint until processing completes or the timeout is reached.
 5. A job summary table is written with the upload results.
 
-No secrets are stored or transmitted — authentication is entirely based on GitHub's OIDC identity federation.
+No long-lived secrets are stored or configured — authentication relies on a short-lived GitHub OIDC token, which is transmitted to Threat Detective as a Bearer token over HTTPS and expires within minutes.
 
 ## Security
 
